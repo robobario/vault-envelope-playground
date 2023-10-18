@@ -55,10 +55,30 @@ public class EnvelopeEncrypt {
         EncryptedRecord record1 = encrypt(dataKey1, "payload of Apples".getBytes(StandardCharsets.UTF_8));
         EncryptedRecord record2 = encrypt(dataKey2, "payload of Bananas".getBytes(StandardCharsets.UTF_8));
 
+        rotateKey(vault, SECRET_KEY_ID);
+
+        DataKey dataKey3 = createDataKey(vault, SECRET_KEY_ID);
+        EncryptedRecord record3 = encrypt(dataKey3, "payload of Kiwifruit".getBytes(StandardCharsets.UTF_8));
+
         byte[] decrypted = decrypt(record1, vault);
         System.out.println("Decrypted record1: " + new String(decrypted));
         byte[] decrypted2 = decrypt(record2, vault);
         System.out.println("Decrypted record2: " + new String(decrypted2));
+
+        // record3 was encrypted with a datakey created after rotation
+        byte[] decrypted3 = decrypt(record3, vault);
+        System.out.println("Decrypted record3: " + new String(decrypted3));
+
+    }
+
+    private static void rotateKey(Vault vault, String secretKeyId) throws VaultException {
+        LogicalResponse write = vault.logical().write("transit/keys/" + secretKeyId + "/rotate", Map.of());
+        int status = write.getRestResponse().getStatus();
+        if(status != 200) {
+            System.out.println("failed to decrypt datakey with status " + status + "! failed response");
+            System.out.println(new String(write.getRestResponse().getBody(), StandardCharsets.UTF_8));
+            System.exit(1);
+        }
     }
 
     private static byte[] decrypt(EncryptedRecord encryptedRecord, Vault vault) {
@@ -115,7 +135,7 @@ public class EnvelopeEncrypt {
     }
 
     private static DataKey createDataKey(Vault vault, String keyEncryptionKeyId) throws VaultException {
-        LogicalResponse createDataKey = vault.logical().write("transit/datakey/plaintext/" + keyEncryptionKeyId, Map.of());
+        LogicalResponse createDataKey = vault.logical().write("transit/datakey/plaintext/" + keyEncryptionKeyId, Map.of("bits", "256"));
         // very helpful, when the server returns 400 it returns a LogicalResponse with empty data, you have to dig into
         // the rest response to find out if the thing actually worked.
         int status = createDataKey.getRestResponse().getStatus();
@@ -128,6 +148,8 @@ public class EnvelopeEncrypt {
         String plaintext = data.get("plaintext");
         String ciphertext = data.get("ciphertext");
         // not sure what this key_version is or if it's useful
+        // edit: this looks like the version of the KEK, it goes up when you rotate, it is present in the ciphertext too
+        // so you only need the ciphertext
         String keyVersion = data.get("key_version");
         DataKey dataKey = new DataKey(keyEncryptionKeyId, Integer.parseInt(keyVersion), ciphertext, plaintext, base64Decode(plaintext));
         System.out.println("DataKey created with vault for keyEncryptionKeyId " + keyEncryptionKeyId + ": " +dataKey);
