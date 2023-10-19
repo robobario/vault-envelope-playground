@@ -16,7 +16,7 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.Random;
 
-public class EnvelopeEncrypt {
+public class VaultEnvelopeEncrypt {
     private static final String AES = "AES";
     private static final int IV_SIZE_BYTES = 16;
     public static final int KEY_SIZE_BITS = 128;
